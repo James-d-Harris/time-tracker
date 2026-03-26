@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 
@@ -11,64 +11,83 @@ class TimeTracker:
         self.root = root
         self.root.title("Time Tracker")
 
-        self.start_time = None
+        self.current_entry = None
 
-        self.label = tk.Label(root, text="Task:")
-        self.label.pack()
-
+        # ===== TASK INPUT =====
+        tk.Label(root, text="Task:").pack()
         self.task_entry = tk.Entry(root, width=40)
         self.task_entry.pack()
 
-        self.clock_in_btn = tk.Button(root, text="Clock In", command=self.clock_in)
-        self.clock_in_btn.pack(pady=5)
+        tk.Button(root, text="Add Task", command=self.add_task).pack(pady=5)
 
-        self.clock_out_btn = tk.Button(root, text="Clock Out", command=self.clock_out)
-        self.clock_out_btn.pack(pady=5)
+        # ===== CLOCK BUTTON =====
+        self.clock_btn = tk.Button(root, text="Clock In", command=self.toggle_clock)
+        self.clock_btn.pack(pady=10)
 
-    def clock_in(self):
-        if self.start_time is not None:
-            messagebox.showwarning("Warning", "Already clocked in!")
-            return
+        self.status_label = tk.Label(root, text="Status: Clocked Out")
+        self.status_label.pack()
 
-        task = self.task_entry.get()
-        if not task:
-            messagebox.showwarning("Warning", "Enter a task first!")
-            return
 
         self.start_time = datetime.now()
         messagebox.showinfo("Clock In", f"Started at {self.start_time}")
 
-    def clock_out(self):
-        if self.start_time is None:
-            messagebox.showwarning("Warning", "You are not clocked in!")
-            return
 
-        end_time = datetime.now()
-        task = self.task_entry.get()
+    # ===== CLOCK LOGIC =====
+    def toggle_clock(self):
+        if self.current_entry is None:
+            self.clock_in()
+        else:
+            self.clock_out()
 
-        entry = {
-            "start": self.start_time.strftime("%Y-%m-%d %H:%M:%S"),
-            "end": end_time.strftime("%Y-%m-%d %H:%M:%S"),
-            "task": task
+    def clock_in(self):
+        self.current_entry = {
+            "start": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "end": None,
+            "tasks": []
         }
 
-        self.save_entry(entry)
+        self.clock_btn.config(text="Clock Out")
+        self.status_label.config(text="Status: Clocked In")
 
-        self.start_time = None
+    def clock_out(self):
+        self.current_entry["end"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        self.save_entry(self.current_entry)
+
+        self.current_entry = None
+        self.clock_btn.config(text="Clock In")
+        self.status_label.config(text="Status: Clocked Out")
+
+        self.refresh_view()
+
+    # ===== TASKS =====
+    def add_task(self):
+        task = self.task_entry.get().strip()
+
+        if not task:
+            messagebox.showwarning("Warning", "Enter a task!")
+            return
+
+        if self.current_entry is None:
+            messagebox.showwarning("Warning", "Clock in first!")
+            return
+
+        self.current_entry["tasks"].append(task)
         self.task_entry.delete(0, tk.END)
 
-        messagebox.showinfo("Clock Out", f"Saved entry:\n{entry}")
+    # ===== DATA =====
+    def load_data(self):
+        if not os.path.exists(DATA_FILE):
+            return []
+
+        with open(DATA_FILE, "r") as f:
+            try:
+                return json.load(f)
+            except:
+                return []
 
     def save_entry(self, entry):
-        data = []
-
-        if os.path.exists(DATA_FILE):
-            with open(DATA_FILE, "r") as f:
-                try:
-                    data = json.load(f)
-                except:
-                    data = []
-
+        data = self.load_data()
         data.append(entry)
 
         with open(DATA_FILE, "w") as f:
